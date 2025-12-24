@@ -15,20 +15,27 @@ export interface SearchResult {
 /**
  * Generates a lesson plan (Situació d'Aprenentatge) based on LOMLOE for Valencia.
  */
-export const generateLessonPlan = async (topic: string, level: string, context?: string): Promise<string> => {
+export const generateLessonPlan = async (topic: string, level: string, context?: string, curriculumContext?: string): Promise<string> => {
   const prompt = `
     Actua com un expert docent en Educació Plàstica, Visual i Audiovisual a la Comunitat Valenciana.
     Crea una "Situació d'Aprenentatge" (Lesson Plan) breu però completa segons la normativa LOMLOE.
     
     Tema: ${topic}
     Nivell educatiu: ${level}
-    Context addicional: ${context || "Cap context específic"}
+    Context addicional de l'aula: ${context || "Cap context específic"}
+
+    ${curriculumContext ? `
+    IMPORTANT: Utilitza exclusivament els següents elements curriculars oficials per a aquest nivell:
+    ${curriculumContext}
+    
+    Assegura't de citar els criteris d'avaluació i competències específiques (CE) mencionats dalt.
+    ` : ''}
 
     L'estructura ha de ser en format Markdown i incloure:
     1. Títol creatiu.
-    2. Competències específiques treballades.
+    2. Competències específiques treballades (Cita els codis oficials si els tens).
     3. Descripció de l'activitat (Pas a pas).
-    4. Criteris d'avaluació.
+    4. Criteris d'avaluació (Cita els codis oficials si els tens).
     5. Adaptació DUA (Disseny Universal per a l'Aprenentatge).
     
     Respon íntegrament en Valencià/Català.
@@ -53,12 +60,17 @@ export const generateLessonPlan = async (topic: string, level: string, context?:
 /**
  * Generates an evaluation rubric.
  */
-export const generateRubric = async (projectDescription: string, level: string): Promise<string> => {
+export const generateRubric = async (projectDescription: string, level: string, curriculumContext?: string): Promise<string> => {
   const prompt = `
     Crea una rúbrica d'avaluació en format taula Markdown per a un projecte de plàstica.
     Projecte: ${projectDescription}
     Nivell: ${level}
     
+    ${curriculumContext ? `
+    Basa els criteris de la rúbrica en els següents elements curriculars oficials:
+    ${curriculumContext}
+    ` : ''}
+
     La rúbrica ha de tindre 4 nivells (Excel·lent, Notable, Suficient, Insuficient) i avaluar 4 criteris clau pertinents al projecte.
     Respon en Valencià.
   `;
@@ -78,7 +90,7 @@ export const generateRubric = async (projectDescription: string, level: string):
 /**
  * Generates a heritage-based activity connecting Art concepts with Valencian Culture.
  */
-export const generateHeritageActivity = async (concept: string, heritageElement: string, level: string): Promise<string> => {
+export const generateHeritageActivity = async (concept: string, heritageElement: string, level: string, curriculumContext?: string): Promise<string> => {
   const prompt = `
     Ets un expert en pedagogia de les arts a la Comunitat Valenciana.
     Proposa una activitat pràctica d'aula (aplicació didàctica) per a l'assignatura de Plàstica.
@@ -87,12 +99,18 @@ export const generateHeritageActivity = async (concept: string, heritageElement:
     Element del patrimoni valencià: ${heritageElement} (ex: Falles, Ceràmica, Sorolla, Modernisme, Carnaval)
     Nivell: ${level}
 
+    ${curriculumContext ? `
+    Integra els següents sabers bàsics o competències del currículum:
+    ${curriculumContext}
+    ` : ''}
+
     L'objectiu és connectar la tradició cultural amb l'expressió plàstica contemporània o digital.
     L'estructura de la resposta (Markdown):
     1. **Títol del Projecte**
     2. **Justificació Patrimonial**: Breu explicació de l'element valencià.
-    3. **Proposta Pràctica**: Què faran els alumnes exactament? (Pot ser manual o digital).
-    4. **Materials/Recursos**: Eines necessàries.
+    3. **Vinculació Curricular**: Quins sabers bàsics es toquen.
+    4. **Proposta Pràctica**: Què faran els alumnes exactament? (Pot ser manual o digital).
+    5. **Materials/Recursos**: Eines necessàries.
     
     Respon en Valencià. Sigues creatiu i innovador.
   `;
@@ -163,7 +181,7 @@ export const searchAndSynthesize = async (query: string, format: string): Promis
 /**
  * Analyzes an image providing constructive feedback for a student.
  */
-export const analyzeStudentWork = async (base64Image: string, question: string): Promise<string> => {
+export const analyzeStudentWork = async (base64Image: string, question: string, language: string = 'Valencià'): Promise<string> => {
   try {
     const response: GenerateContentResponse = await ai.models.generateContent({
       model: VISION_MODEL,
@@ -177,7 +195,7 @@ export const analyzeStudentWork = async (base64Image: string, question: string):
           },
           {
             text: `Ets un professor d'art amable i constructiu. Analitza aquesta imatge creada per un alumne. ${question ? `Pregunta de l'alumne: "${question}"` : ''}. 
-            Centra't en la composició, l'ús del color i la tècnica. Dona 2 punts forts i 1 consell de millora. Respon en Valencià.`
+            Centra't en la composició, l'ús del color i la tècnica. Dona 2 punts forts i 1 consell de millora. Respon en ${language}.`
           }
         ]
       }

@@ -20,12 +20,15 @@ import {
   Calendar,
   Search,
   ExternalLink,
-  FolderDown
+  FolderDown,
+  Globe,
+  FileText
 } from 'lucide-react';
 import Layout from './components/Layout';
 import Button from './components/Button';
-import { UserRole, AppView, LEVELS, EducationalLevel, SavedItem, SavedItemType } from './types';
+import { UserRole, AppView, LEVELS, EducationalLevel, SavedItem, SavedItemType, CurriculumData } from './types';
 import * as GeminiService from './services/geminiService';
+import { getCurriculumForLevel } from './data/curriculum';
 
 const App: React.FC = () => {
   const [role, setRole] = useState<UserRole>(UserRole.NONE);
@@ -82,6 +85,20 @@ const App: React.FC = () => {
 
   // State for Teachers (General)
   const [selectedLevel, setSelectedLevel] = useState<string>(LEVELS[0].id);
+  const [availableSubjects, setAvailableSubjects] = useState<CurriculumData[]>([]);
+  const [selectedSubject, setSelectedSubject] = useState<string>('');
+  
+  // Update subjects when level changes
+  useEffect(() => {
+    const subjects = getCurriculumForLevel(selectedLevel);
+    setAvailableSubjects(subjects);
+    if (subjects.length > 0) {
+      setSelectedSubject(subjects[0].subject);
+    } else {
+      setSelectedSubject('');
+    }
+  }, [selectedLevel]);
+
   const [generatedContent, setGeneratedContent] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [isDownloadingZip, setIsDownloadingZip] = useState(false);
@@ -102,6 +119,7 @@ const App: React.FC = () => {
   // State for Students
   const [analysisImage, setAnalysisImage] = useState<string | null>(null);
   const [analysisQuestion, setAnalysisQuestion] = useState('');
+  const [analysisLanguage, setAnalysisLanguage] = useState('Valencià');
   const [analysisResult, setAnalysisResult] = useState('');
   const [creativePrompt, setCreativePrompt] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -130,12 +148,26 @@ const App: React.FC = () => {
     setGeneratedContent('');
     setAnalysisImage(null);
     setAnalysisResult('');
+    setAnalysisLanguage('Valencià');
     setCreativePrompt('');
     setGenImagePrompt('');
     setGenImageSource(null);
     setGenImageResult(null);
     setSearchQuery('');
     setSearchResult(null);
+  };
+
+  // Helper to get curriculum context string
+  const getCurriculumContext = (): string | undefined => {
+    const subjectData = availableSubjects.find(s => s.subject === selectedSubject);
+    if (!subjectData) return undefined;
+    return `
+      Matèria: ${subjectData.subject}
+      Competències Específiques: ${subjectData.competencies}
+      Criteris d'Avaluació: ${subjectData.criteria}
+      Sabers Bàsics: ${subjectData.basicKnowledge}
+      ${subjectData.situations ? `Situacions d'Aprenentatge (SAs) del curs: ${subjectData.situations}` : ''}
+    `;
   };
 
   // Logic: Teacher - Generate Lesson Plan
@@ -145,7 +177,8 @@ const App: React.FC = () => {
     setGeneratedContent('');
     try {
       const levelLabel = LEVELS.find(l => l.id === selectedLevel)?.label || 'ESO';
-      const result = await GeminiService.generateLessonPlan(topic, levelLabel, context);
+      const curriculumContext = getCurriculumContext();
+      const result = await GeminiService.generateLessonPlan(topic, levelLabel, context, curriculumContext);
       setGeneratedContent(result);
     } catch (error) {
       setGeneratedContent("Hi ha hagut un error generant el contingut. Torna-ho a provar.");
@@ -161,7 +194,8 @@ const App: React.FC = () => {
     setGeneratedContent('');
     try {
       const levelLabel = LEVELS.find(l => l.id === selectedLevel)?.label || 'ESO';
-      const result = await GeminiService.generateRubric(topic, levelLabel);
+      const curriculumContext = getCurriculumContext();
+      const result = await GeminiService.generateRubric(topic, levelLabel, curriculumContext);
       setGeneratedContent(result);
     } catch (error) {
       setGeneratedContent("Error generant la rúbrica.");
@@ -176,7 +210,8 @@ const App: React.FC = () => {
     setGeneratedContent('');
     try {
       const levelLabel = LEVELS.find(l => l.id === selectedLevel)?.label || 'ESO';
-      const result = await GeminiService.generateHeritageActivity(heritageConcept, heritageElement, levelLabel);
+      const curriculumContext = getCurriculumContext();
+      const result = await GeminiService.generateHeritageActivity(heritageConcept, heritageElement, levelLabel, curriculumContext);
       setGeneratedContent(result);
     } catch (error) {
       setGeneratedContent("Error generant l'activitat patrimonial.");
@@ -233,7 +268,7 @@ const App: React.FC = () => {
     try {
       // Strip base64 header
       const base64Data = analysisImage.split(',')[1];
-      const result = await GeminiService.analyzeStudentWork(base64Data, analysisQuestion);
+      const result = await GeminiService.analyzeStudentWork(base64Data, analysisQuestion, analysisLanguage);
       setAnalysisResult(result);
     } catch (error) {
       setAnalysisResult("Error analitzant la imatge.");
@@ -511,19 +546,41 @@ const App: React.FC = () => {
           <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6 sticky top-24">
             
             {view !== AppView.SEARCH_INFO && (
-              <div className="mb-4">
-               <label htmlFor="global-level" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Nivell Educatiu</label>
-                <select 
-                  id="global-level"
-                  value={selectedLevel}
-                  onChange={(e) => setSelectedLevel(e.target.value)}
-                  className="w-full rounded-md border-slate-300 dark:border-slate-600 shadow-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 dark:focus:ring-offset-slate-800 bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 p-2.5 border transition-colors"
-                >
-                  {LEVELS.map(level => (
-                    <option key={level.id} value={level.id}>{level.label}</option>
-                  ))}
-                </select>
-                <hr className="my-4 border-slate-100 dark:border-slate-700" />
+              <div className="mb-4 space-y-4">
+                <div>
+                  <label htmlFor="global-level" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Nivell Educatiu</label>
+                  <select 
+                    id="global-level"
+                    value={selectedLevel}
+                    onChange={(e) => setSelectedLevel(e.target.value)}
+                    className="w-full rounded-md border-slate-300 dark:border-slate-600 shadow-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 dark:focus:ring-offset-slate-800 bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 p-2.5 border transition-colors"
+                  >
+                    {LEVELS.map(level => (
+                      <option key={level.id} value={level.id}>{level.label}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {availableSubjects.length > 0 && (
+                  <div className="animate-in fade-in slide-in-from-top-1 duration-300">
+                    <label htmlFor="subject-select" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Matèria (Currículum)</label>
+                    <select 
+                      id="subject-select"
+                      value={selectedSubject}
+                      onChange={(e) => setSelectedSubject(e.target.value)}
+                      className="w-full rounded-md border-slate-300 dark:border-slate-600 shadow-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 dark:focus:ring-offset-slate-800 bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 p-2.5 border transition-colors"
+                    >
+                      {availableSubjects.map((sub, idx) => (
+                        <option key={idx} value={sub.subject}>{sub.subject}</option>
+                      ))}
+                    </select>
+                    <div className="mt-1 flex items-center text-xs text-indigo-600 dark:text-indigo-400">
+                      <FileText size={12} className="mr-1" />
+                      <span>Currículum oficial carregat</span>
+                    </div>
+                  </div>
+                )}
+                <hr className="border-slate-100 dark:border-slate-700" />
               </div>
             )}
             
@@ -876,8 +933,21 @@ const App: React.FC = () => {
                   value={analysisQuestion}
                   onChange={(e) => setAnalysisQuestion(e.target.value)}
                   placeholder="Ex: Com puc millorar les ombres?"
-                  className="w-full rounded-md border-slate-300 dark:border-slate-600 shadow-sm focus:border-rose-500 focus:ring-rose-500 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 p-2.5 border transition-colors"
+                  className="w-full rounded-md border-slate-300 dark:border-slate-600 shadow-sm focus:border-rose-500 focus:ring-rose-500 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 p-2.5 border transition-colors mb-2"
                 />
+                 
+                 <div className="flex items-center gap-2 mt-3">
+                   <Globe size={18} className="text-slate-400" />
+                   <select 
+                     value={analysisLanguage}
+                     onChange={(e) => setAnalysisLanguage(e.target.value)}
+                     className="flex-grow rounded-md border-slate-300 dark:border-slate-600 shadow-sm focus:border-rose-500 focus:ring-rose-500 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 p-2 border text-sm"
+                   >
+                     <option value="Valencià">Valencià / Català</option>
+                     <option value="Castellano">Castellano</option>
+                     <option value="English">English</option>
+                   </select>
+                 </div>
               </div>
 
               <Button 

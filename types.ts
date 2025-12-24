@@ -30,6 +30,14 @@ export const LEVELS: EducationalLevel[] = [
   { id: '2bat', label: '2n Batxillerat Artístic' },
 ];
 
+export interface CurriculumData {
+  subject: string;
+  competencies: string;
+  criteria: string;
+  basicKnowledge: string;
+  situations?: string; // Situacions d'aprenentatge context
+}
+
 export interface ChatMessage {
   role: 'user' | 'model';
   content: string;
