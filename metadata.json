@@ -1,0 +1,8 @@
+{
+  "name": "EduArt CV: Plàstica i Visual",
+  "description": "Una plataforma educativa interactiva per a l'assignatura d'Educació Plàstica, Visual i Audiovisual a la Comunitat Valenciana, potenciant la creativitat docent i l'aprenentatge de l'alumnat amb IA.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
